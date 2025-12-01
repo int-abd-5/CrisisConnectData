@@ -2,13 +2,9 @@
 import requests
 from base_sender import send_to_backend
 
-# Public ICIMOD GLOF hazard API (no API key required)
 ICIMOD_GLOF_URL = "https://glofs.icimod.org/api/v1/hazards"
-
-# GLIMS glacier/lake inventory
 GLIMS_API = "https://www.glims.org/rest/glacier/"
 
-# Northern Pakistan region bounding box for Karakoram / Himalaya
 REGION = {
     "lat_min": 33,
     "lat_max": 37.5,
