@@ -13,9 +13,15 @@ REGION = {
 }
 
 def fetch_glofs():
-    glacial_report = {}
+    glacial_report = {
+        "icimod_glof_hazard": [],
+        "glims_glacial_lakes": {},
+        "high_risk_lakes": 0
+    }
 
-    # ---- 1. Fetch ICIMOD GLOF Hazard Index ----
+    # -------------------------
+    # 1. ICIMOD GLOF HAZARD API
+    # -------------------------
     try:
         params = {
             "min_lat": REGION["lat_min"],
@@ -24,13 +30,23 @@ def fetch_glofs():
             "max_lon": REGION["lon_max"]
         }
 
-        icimod_resp = requests.get(ICIMOD_GLOF_URL, params=params, timeout=10)
-        glacial_report["icimod_glof_hazard"] = icimod_resp.json()
+        resp = requests.get(ICIMOD_GLOF_URL, params=params, timeout=15)
+        data = resp.json()
+
+        # API sometimes returns {"data":[...]} instead of [...]
+        if isinstance(data, dict) and "data" in data:
+            glacial_report["icimod_glof_hazard"] = data["data"]
+        elif isinstance(data, list):
+            glacial_report["icimod_glof_hazard"] = data
+        else:
+            glacial_report["icimod_glof_hazard"] = []
 
     except Exception as e:
         glacial_report["icimod_error"] = str(e)
 
-    # ---- 2. Fetch GLIMS glacier/lake inventory ----
+    # -------------------------
+    # 2. GLIMS GLACIAL LAKE DATA
+    # -------------------------
     try:
         glims_params = {
             "min_latitude": REGION["lat_min"],
@@ -40,28 +56,39 @@ def fetch_glofs():
             "format": "geojson"
         }
 
-        glims_resp = requests.get(GLIMS_API, params=glims_params, timeout=12)
-        glacial_report["glims_glacial_lakes"] = glims_resp.json()
+        resp = requests.get(GLIMS_API, params=glims_params, timeout=20)
+        if resp.headers.get("Content-Type", "").startswith("application/json") \
+           or resp.text.strip().startswith("{"):
+
+            glacial_report["glims_glacial_lakes"] = resp.json()
+        else:
+            glacial_report["glims_glacial_lakes"] = {"error": "Invalid response format"}
 
     except Exception as e:
         glacial_report["glims_error"] = str(e)
 
-    # ---- 3. Alert threshold example ----
-    # You can modify logic later inside Ktor backend
+    # -------------------------
+    # 3. RISK SCORING
+    # -------------------------
     try:
-        high_risk_count = 0
-        for lake in glacial_report.get("icimod_glof_hazard", []):
-            if lake.get("hazard_level") in ["high", "very_high"]:
-                high_risk_count += 1
+        high_count = 0
+        for lake in glacial_report["icimod_glof_hazard"]:
+            level = lake.get("hazard_level", "").lower()
+            if level in ("high", "very_high"):
+                high_count += 1
 
-        glacial_report["high_risk_lakes"] = high_risk_count
-    except:
-        pass
+        glacial_report["high_risk_lakes"] = high_count
 
-    # ---- Send to Ktor backend ----
+    except Exception as e:
+        glacial_report["risk_calc_error"] = str(e)
+
+    # -------------------------
+    # 4. SEND TO BACKEND
+    # -------------------------
     send_to_backend(
         disaster_type="glof",
-        source="ICIMOD + GLIMS",
+        source="icimod + glims",
         region="Northern Pakistan (Karakoram, Himalaya)",
         data=glacial_report
+        #print(data)
     )
