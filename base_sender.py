@@ -2,7 +2,7 @@ import requests
 import json
 from datetime import datetime
 
-BACKEND_URL = "https://dummy-backend.com/api/disasters/ingest"
+BACKEND_URL = "https://pajnukvjxmwhdglngkyc.supabase.co/api/disasters/ingest"
 
 def send_to_backend(disaster_type: str, source: str, region: str, data: dict):
     payload = {
